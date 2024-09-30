@@ -75,14 +75,14 @@ public class ImgLib2Converters {
 	public static < T extends NativeType< T > >
 		ArrayJ copyImgLib2ToArrayJ(RandomAccessibleInterval<T> rai, DeviceJ device, String memoryType) {
 		checkSize(rai);
-		T type = Util.getTypeFromInterval(rai);
+		T type = rai.getType();
 		ImgLib2DataType dataType = ImgLib2DataType.fromImgLib2DataType(type);
 		PrimitiveBlocks< T > blocks = PrimitiveBlocks.of( rai );
 		long totalSize = Arrays.stream(rai.dimensionsAsLongArray()).reduce(1L, (a, b) -> a * b);
 		if (totalSize * dataType.getByteSize() > Integer.MAX_VALUE)
 			throw new IllegalArgumentException();
 
-		int[] integerDims = Arrays.stream(rai.dimensionsAsLongArray()).mapToInt(x -> (int) x).toArray();
+		int[] integerDims = Util.long2int(rai.dimensionsAsLongArray());
 	    Object flatArr = dataType.createArray((int) totalSize);
 	    blocks.copy(new int[rai.dimensionsAsLongArray().length], flatArr, integerDims);
 
