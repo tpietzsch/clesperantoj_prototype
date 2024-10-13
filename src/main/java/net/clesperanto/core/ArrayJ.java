@@ -181,6 +181,24 @@ public class ArrayJ {
     /**
      * TODO javadoc
      *
+     * @param data a primitive array matching the datatype of this array
+     * @param offset
+     * @param size
+     */
+    // TODO do we want this method signature?
+    public void readToArray(Object data, long[] offset, int[] size) {
+        final long ox = offset.length > 0 ? offset[0] : 0;
+        final long oy = offset.length > 1 ? offset[1] : 0;
+        final long oz = offset.length > 2 ? offset[2] : 0;
+        final int sx = size.length > 0 ? size[0] : 1;
+        final int sy = size.length > 1 ? size[1] : 1;
+        final int sz = size.length > 2 ? size[2] : 1;
+        dataType.memory().readToArray(this, data, ox, oy, oz, sx, sy, sz);
+    }
+
+    /**
+     * TODO javadoc
+     *
      * @param data a {@code Buffer} matching the datatype of this array
      */
     public void readToBuffer(Object data) {

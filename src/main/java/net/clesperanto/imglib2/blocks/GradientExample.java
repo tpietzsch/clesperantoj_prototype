@@ -80,7 +80,7 @@ public class GradientExample {
             final ArrayJ destA = new ArrayJ(srcSize, currentDevice, DataType.FLOAT32, MemoryType.BUFFER);
             Tier1.gradientX(currentDevice, srcA, destA);
 
-            DataType.FLOAT32.memory().readToArray(destA, dest, 1, 0, 0, size[0], size[1], size.length > 2 ? size[2] : 1);
+            destA.readToArray(dest, new long[]{1, 0, 0}, size);
         }
 
         @Override

@@ -5,17 +5,15 @@ import bdv.util.BdvFunctions;
 import bdv.util.BdvSource;
 import ij.IJ;
 import ij.ImagePlus;
-import net.clesperanto._internals.jclic;
 import net.clesperanto.core.ArrayJ;
 import net.clesperanto.core.DataType;
 import net.clesperanto.core.DeviceJ;
 import net.clesperanto.core.MemoryType;
 import net.clesperanto.kernels.Tier1;
-import net.imglib2.algorithm.blocks.AbstractBlockSupplier;
-import net.imglib2.algorithm.blocks.BlockAlgoUtils;
-import net.imglib2.algorithm.blocks.BlockSupplier;
+import net.imglib2.algorithm.blocks.*;
 import net.imglib2.img.Img;
 import net.imglib2.img.display.imagej.ImageJFunctions;
+import net.imglib2.type.PrimitiveType;
 import net.imglib2.type.numeric.integer.UnsignedByteType;
 import net.imglib2.type.numeric.real.FloatType;
 import net.imglib2.util.Intervals;
@@ -26,7 +24,7 @@ import java.util.Arrays;
 import static net.imglib2.util.Util.safeInt;
 import static net.imglib2.view.fluent.RandomAccessibleIntervalView.Extension.border;
 
-public class GradientExample {
+public class GradientExample2 {
 
     public static void main(String[] args) {
 
@@ -40,6 +38,33 @@ public class GradientExample {
         BdvSource source = BdvFunctions.show(out, "gradientX", Bdv.options().is2D());
         source.setDisplayRange(-128, 127);
 
+    }
+
+    static class GradientX_BlockProcessor_UINT8 extends AbstractBlockProcessor<byte[], float[]> {
+
+        private final DeviceJ device;
+
+        public GradientX_BlockProcessor_UINT8(final DeviceJ device, final int numDimensions) {
+            super(PrimitiveType.BYTE, numDimensions);
+            this.device = device;
+        }
+
+        private GradientX_BlockProcessor_UINT8(final GradientX_BlockProcessor_UINT8 proc) {
+            super(proc);
+            this.device = proc.device;
+        }
+
+        @Override
+        public BlockProcessor<byte[], float[]> independentCopy() {
+            return new GradientX_BlockProcessor_UINT8(this);
+        }
+
+        @Override
+        public void compute(byte[] src, float[] dest) {
+            // TODO
+            //   next: TempArrayJ --> holds an ArrayJ
+            //   [ ] how is cle::Array released?
+        }
     }
 
     static class GradientXSupplier extends AbstractBlockSupplier<FloatType> {
