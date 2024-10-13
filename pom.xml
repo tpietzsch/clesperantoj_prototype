@@ -103,8 +103,16 @@
 		<license.copyrightOwners>Robert Haase, MPI CBG and Stephane Rigaud, Institut Pasteur</license.copyrightOwners>
 		<!-- NB: Deploy releases to the SciJava Maven repository. -->
 		<releaseProfiles>sign,deploy-to-scijava</releaseProfiles>
+
+		<imglib2.version>7.1.2</imglib2.version>
+		<imglib2-cache.version>1.0.0-beta-19</imglib2-cache.version>
+		<imglib2-algorithm.version>0.16.0</imglib2-algorithm.version>
+		<imglib2-ij.version>2.0.3</imglib2-ij.version>
+		<bigdataviewer-core.version>10.6.1</bigdataviewer-core.version>
+
+		<skip.cppbuild>false</skip.cppbuild>
 	</properties>
-	
+
     <profiles>
         <profile>
             <id>win</id>
@@ -151,8 +159,26 @@
 		<dependency>
 			<groupId>net.imglib2</groupId>
 			<artifactId>imglib2</artifactId>
-			<version>7.0.2</version>
 		</dependency>
+		<dependency>
+			<groupId>net.imglib2</groupId>
+			<artifactId>imglib2-cache</artifactId>
+		</dependency>
+		<dependency>
+			<groupId>net.imglib2</groupId>
+			<artifactId>imglib2-algorithm</artifactId>
+		</dependency>
+		<dependency>
+			<groupId>net.imglib2</groupId>
+			<artifactId>imglib2-ij</artifactId>
+		</dependency>
+		<dependency>
+			<groupId>sc.fiji</groupId>
+			<artifactId>bigdataviewer-core</artifactId>
+		</dependency>
+
+
+
         <dependency>
 			<groupId>junit</groupId>
 			<artifactId>junit</artifactId>
@@ -226,6 +252,7 @@
 							<executable>bash</executable>
 							<commandlineArgs>${project.basedir}/native/cppbuild.sh</commandlineArgs>
 							<workingDirectory>${project.basedir}/native</workingDirectory>
+							<skip>${skip.cppbuild}</skip>
 						</configuration>
 					</execution>
 				</executions>
@@ -363,13 +390,13 @@
 		            </goals>
 		            <configuration>
 		              <outputDirectory>${project.basedir}/target/classes/net/clesperanto</outputDirectory>
-		              <resources>          
+		              <resources>
 		                <resource>
 		                  <directory>${project.basedir}/libs</directory>
 		                  <filtering>false</filtering>
 		                </resource>
-		              </resources>              
-		            </configuration>            
+		              </resources>
+		            </configuration>
 		          </execution>
 		        </executions>
       		</plugin>
