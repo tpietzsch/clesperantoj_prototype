@@ -16,7 +16,7 @@ import java.util.Objects;
 /**
  * Class to interact with the arrays allocated on the GPU by ClesperantoJ
  */
-public class ArrayJ {
+public class ArrayJ implements AutoCloseable {
 
     private final _ArrayJ _arrayj;
 
@@ -33,11 +33,11 @@ public class ArrayJ {
     // TODO replace by method static ArrayJ wrapRaw(_ArrayJ)
     public ArrayJ(final _ArrayJ _arrayj) {
         this._arrayj = _arrayj;
+        _arrayj.retainReference();
 
         dataType = DataType.fromDType(_arrayj.dtype());
         memoryType = MemoryType.fromMType(_arrayj.mtype());
         device = new DeviceJ(_arrayj.device());
-
         width = _arrayj.getWidth();
         height = _arrayj.getHeight();
         depth = _arrayj.getDepth();
@@ -55,6 +55,7 @@ public class ArrayJ {
                   final DeviceJ device, final DataType dataType, final MemoryType memoryType) {
         checkDimensions(width, height, depth, numDimensions);
         this._arrayj = _ArrayJ.create(width, height, depth, numDimensions, dataType.getRaw(), memoryType.getRaw(), device.getRaw());
+        _arrayj.retainReference();
         this.dataType = dataType;
         this.memoryType = memoryType;
         this.device = device;
@@ -149,6 +150,7 @@ public class ArrayJ {
      * @param value the value that every position in the array will adopt
      */
     public void fillMemory(float value) {
+        checkClosed();
         _arrayj.fillMemory(value);
     }
 
@@ -159,6 +161,7 @@ public class ArrayJ {
      * 	the array into which the current array will be copied
      */
     public void copyDataTo(ArrayJ dst) {
+        checkClosed();
         _arrayj.copyDataTo(dst._arrayj);
     }
 
@@ -166,6 +169,7 @@ public class ArrayJ {
      * @return the raw object that is going to be sent to the native Clesperanto library. Without Java wrappers
      */
     public _ArrayJ getRaw() {
+        checkClosed();
         return _arrayj;
     }
 
@@ -175,6 +179,7 @@ public class ArrayJ {
      * @param data a primitive array matching the datatype of this array
      */
     public void readToArray(Object data) {
+        checkClosed();
         dataType.memory().readToArray(this, data, 0, 0, 0, width, height, depth);
     }
 
@@ -193,6 +198,7 @@ public class ArrayJ {
         final int sx = size.length > 0 ? size[0] : 1;
         final int sy = size.length > 1 ? size[1] : 1;
         final int sz = size.length > 2 ? size[2] : 1;
+        checkClosed();
         dataType.memory().readToArray(this, data, ox, oy, oz, sx, sy, sz);
     }
 
@@ -202,6 +208,7 @@ public class ArrayJ {
      * @param data a {@code Buffer} matching the datatype of this array
      */
     public void readToBuffer(Object data) {
+        checkClosed();
         dataType.memory().readToBuffer(this, data, 0, 0, 0, width, height, depth);
     }
 
@@ -211,6 +218,7 @@ public class ArrayJ {
      * @param data a primitive array matching the datatype of this array
      */
     public void writeFromArray(Object data) {
+        checkClosed();
         dataType.memory().writeFromArray(this, data, 0, 0, 0, width, height, depth);
     }
 
@@ -220,9 +228,23 @@ public class ArrayJ {
      * @param data a {@code Buffer} matching the datatype of this array
      */
     public void writeFromBuffer(Object data) {
+        checkClosed();
         dataType.memory().writeFromBuffer(this, data, 0, 0, 0, width, height, depth);
     }
 
+    /**
+     * Explicitly release the underlying {@code cle::Array} now (instead of waiting for GC to clean it up).
+     */
+    @Override
+    public void close() {
+        _arrayj.releaseReference();
+    }
+
+    private void checkClosed() {
+        if (_arrayj.referenceCount() < 0) {
+            throw new IllegalStateException("ArrayJ has already been closed");
+        }
+    }
 
     @Override
     public boolean equals(Object o) {
