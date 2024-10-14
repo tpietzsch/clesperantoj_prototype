@@ -9,20 +9,19 @@ import net.clesperanto.core.ArrayJ;
 import net.clesperanto.core.DataType;
 import net.clesperanto.core.DeviceJ;
 import net.clesperanto.core.MemoryType;
-import net.clesperanto.kernels.Tier1;
+import net.imglib2.Interval;
 import net.imglib2.algorithm.blocks.*;
 import net.imglib2.img.Img;
 import net.imglib2.img.display.imagej.ImageJFunctions;
+import net.imglib2.type.NativeType;
 import net.imglib2.type.PrimitiveType;
 import net.imglib2.type.numeric.integer.UnsignedByteType;
 import net.imglib2.type.numeric.real.FloatType;
-import net.imglib2.util.Intervals;
-import net.imglib2.util.Util;
 
 import java.util.Arrays;
+import java.util.function.Function;
 
 import static net.imglib2.util.Util.safeInt;
-import static net.imglib2.view.fluent.RandomAccessibleIntervalView.Extension.border;
 
 public class GradientExample2 {
 
@@ -32,98 +31,77 @@ public class GradientExample2 {
         final ImagePlus imp = IJ.openImage(fn);
         final Img<UnsignedByteType> img = ImageJFunctions.wrapByte(imp);
 
-        final BlockSupplier<FloatType> blocks = new GradientXSupplier(img);
+        final DeviceJ device = DeviceJ.getDefaultDevice();
+        final BlockSupplier<FloatType> blocks = BlockSupplier.of(img).andThen(Tier1.gradientX(device));
         final Img<FloatType> out = BlockAlgoUtils.cellImg(blocks, img.dimensionsAsLongArray(), new int[]{32});
 
-        BdvSource source = BdvFunctions.show(out, "gradientX", Bdv.options().is2D());
+        BdvSource source = BdvFunctions.show(out, "gradientX", Bdv.options().is2D().numRenderingThreads(1));
         source.setDisplayRange(-128, 127);
 
     }
 
-    static class GradientX_BlockProcessor_UINT8 extends AbstractBlockProcessor<byte[], float[]> {
+    public static class Tier1 {
 
-        private final DeviceJ device;
-
-        public GradientX_BlockProcessor_UINT8(final DeviceJ device, final int numDimensions) {
-            super(PrimitiveType.BYTE, numDimensions);
-            this.device = device;
+        public static <T extends NativeType<T>>
+        Function<BlockSupplier<T>, UnaryBlockOperator<T, FloatType>> gradientX(final DeviceJ device) {
+            return s -> {
+                final T type = s.getType();
+                final int n = s.numDimensions();
+                return createGradientXOperator(device, type, n);
+            };
         }
 
-        private GradientX_BlockProcessor_UINT8(final GradientX_BlockProcessor_UINT8 proc) {
-            super(proc);
-            this.device = proc.device;
+        public static <T extends NativeType<T>>
+        UnaryBlockOperator<T, FloatType> createGradientXOperator(final DeviceJ device, final T sourceType, final int numDimensions) {
+            final GradientX_BlockProcessor_UINT8 proc = new GradientX_BlockProcessor_UINT8(device, numDimensions);
+            return new DefaultUnaryBlockOperator<>(sourceType, new FloatType(), numDimensions, numDimensions, proc);
         }
 
-        @Override
-        public BlockProcessor<byte[], float[]> independentCopy() {
-            return new GradientX_BlockProcessor_UINT8(this);
-        }
+        // TODO: abstract base class for BlockProcessors that upload/download to/from ArrayJ
+        private static class GradientX_BlockProcessor_UINT8 extends AbstractBlockProcessor<byte[], float[]> {
 
-        @Override
-        public void compute(byte[] src, float[] dest) {
-            // TODO
-            //   next: TempArrayJ --> holds an ArrayJ
-            //   [ ] how is cle::Array released?
-        }
-    }
+            private final DeviceJ device;
+            private final TempArrayJ tempArraySrc;
+            private final TempArrayJ tempArrayDest;
+            private final int[] destSize;
 
-    static class GradientXSupplier extends AbstractBlockSupplier<FloatType> {
+            public GradientX_BlockProcessor_UINT8(final DeviceJ device, final int numDimensions) {
+                super(PrimitiveType.BYTE, numDimensions);
+                this.device = device;
+                this.tempArraySrc = new TempArrayJ(device, DataType.UINT8, MemoryType.BUFFER);
+                this.tempArrayDest = new TempArrayJ(device, DataType.FLOAT32, MemoryType.BUFFER);
+                this.destSize = new int[numDimensions];
+            }
 
-        private final DeviceJ currentDevice;
-        private final BlockSupplier<UnsignedByteType> imgBlocks;
+            private GradientX_BlockProcessor_UINT8(final GradientX_BlockProcessor_UINT8 proc) {
+                super(proc);
+                this.device = proc.device;
+                this.tempArraySrc = proc.tempArraySrc.newInstance();
+                this.tempArrayDest = proc.tempArrayDest.newInstance();
+                this.destSize = new int[proc.destSize.length];
+            }
 
-        GradientXSupplier(final Img<UnsignedByteType> img) {
-            this.currentDevice = DeviceJ.getDefaultDevice();
-            System.out.println("currentDevice.getInfo() = " + currentDevice.getInfo());
-            System.out.println("currentDevice.getBackend() = " + currentDevice.getBackend());
-            this.imgBlocks = BlockSupplier.of(img.view().extend(border()));
-        }
+            @Override
+            public BlockProcessor<byte[], float[]> independentCopy() {
+                return new GradientX_BlockProcessor_UINT8(this);
+            }
 
-        private GradientXSupplier(final GradientXSupplier s) {
-            this.currentDevice = s.currentDevice;
-            this.imgBlocks = s.imgBlocks.independentCopy();
-        }
+            @Override
+            public void setTargetInterval(Interval interval) {
+                Arrays.setAll(destSize, d -> safeInt(interval.dimension(d)));
+                Arrays.setAll(sourcePos, d -> interval.min(d) - ((d == 0) ? 1 : 0));
+                Arrays.setAll(sourceSize, d -> destSize[d] + ((d == 0) ? 2 : 0));
+            }
 
-        @Override
-        public void copy(long[] pos, Object dest, int[] size) {
+            @Override
+            public void compute(byte[] src, float[] dest) {
+                final ArrayJ srcA = tempArraySrc.get(sourceSize);
+                final ArrayJ destA = tempArrayDest.get(sourceSize);
 
-            final int n = numDimensions();
-            final long[] srcPos = new long[n];
-            Arrays.setAll(srcPos, d -> pos[d] - ((d == 0) ? 1 : 0));
-            final int[] srcSize = new int[n];
-            Arrays.setAll(srcSize, d -> size[d] + ((d == 0) ? 2 : 0));
-            final long[] srcSizeL = Util.int2long(srcSize);
-
-            final byte[] src = new byte[safeInt(Intervals.numElements(srcSize))]; // TODO: should use TempArray
-            imgBlocks.copy(srcPos, src, srcSize);
-
-            // TODO: make a TempArray-like thing for ArrayJ
-            final ArrayJ srcA = new ArrayJ(srcSize, currentDevice, DataType.UINT8, MemoryType.BUFFER);
-//            final ArrayJ srcA = currentDevice.newArray( DataType.UINT8, jclic.MTypeJ.BUFFER, srcSize );
-//            final ArrayJ srcA = currentDevice.createArray( DataType.UINT8, jclic.MTypeJ.BUFFER, srcSize );
-            srcA.writeFromArray(src);
-            final ArrayJ destA = new ArrayJ(srcSize, currentDevice, DataType.FLOAT32, MemoryType.BUFFER);
-            Tier1.gradientX(currentDevice, srcA, destA);
-
-            destA.readToArray(dest, new long[]{1, 0, 0}, size);
-        }
-
-        @Override
-        public BlockSupplier<FloatType> independentCopy() {
-            return new GradientXSupplier(this);
-        }
-
-        @Override
-        public int numDimensions() {
-            return imgBlocks.numDimensions();
-        }
-
-        private static final FloatType type = new FloatType();
-
-        @Override
-        public FloatType getType() {
-            return type;
+                srcA.writeFromArray(src);
+                net.clesperanto.kernels.Tier1.gradientX(device, srcA, destA);
+                destA.readToArray(dest, new long[]{1, 0, 0}, destSize);
+            }
         }
     }
-
 }
